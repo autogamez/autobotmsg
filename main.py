@@ -487,7 +487,14 @@ async def delete(interaction: discord.Interaction, password: str):
 async def on_ready():
     await bot.tree.sync()
     print(f"✅ Bot Online as {bot.user}")
+    log_alive.start()
 
+# -------------------
+# Task: log "Bot is alive!" ทุก 5 นาที
+# -------------------
+@tasks.loop(minutes=5)
+async def log_alive():
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Bot is alive!")
 
 # ------------------------------
 # Reaction Role System (เหมือนเดิม)
