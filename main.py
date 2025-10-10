@@ -301,7 +301,7 @@ class JoinView(discord.ui.View):
         uid = self.user.id
         if uid not in user_party:
             await interaction.response.send_message(
-                "⚠️ คุณไม่ได้อยู่ปาร์ตี้ใดๆ", ephemeral=True)
+                "⚠️ You are not in any party.", ephemeral=True)
             return
 
         time, ch, boss, count = user_party[uid]
@@ -344,19 +344,24 @@ class JoinView(discord.ui.View):
 async def mhjoin(interaction: discord.Interaction):
     channel = interaction.channel
 
+    # ตรวจสอบ history ของข้อความล่าสุดในแชท
+    async for msg in channel.history(limit=50):  # เช็คย้อนหลัง 50 ข้อความ
+        if msg.author == bot.user and msg.embeds:
+            for embed in msg.embeds:
+                if embed.title and "Party Monster Hunt" in embed.title:
+                    await interaction.response.send_message(
+                        "❌ This chat already contains a /mhjoin. Duplicate not allowed.",
+                        ephemeral=True
+                    )
+                    return
+
     now = datetime.now(timezone(timedelta(hours=7)))
     join_hour, join_minute = map(int, join_start_time.split("."))
     join_dt = now.replace(hour=join_hour,
                           minute=join_minute,
                           second=0,
                           microsecond=0)
-
-    if now < join_dt:
-        await interaction.response.send_message(
-            f"⏳ ยังไม่ถึงเวลาที่กำหนด โปรดรอ {join_start_time} เป็นต้นไป",
-            ephemeral=True)
-        return
-
+                          
     embed = discord.Embed(
         title="🎯 Party Monster Hunt",
         description=
