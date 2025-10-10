@@ -108,7 +108,7 @@ async def show_party(interaction: discord.Interaction, time: str = None):
 class JoinView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(timeout=None)  # ไม่มีหมดอายุ
+        super().__init__(timeout=None)
         self.selected_time = None
         self.selected_ch = None
         self.selected_boss = None
@@ -186,11 +186,19 @@ class JoinView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
     # ------------------------------
-    # Confirm Join (ล็อค slot ทันที)
+    # Confirm Join
     # ------------------------------
     async def confirm_callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
 
+        # ป้องกัน Confirm ซ้ำ
+        if uid in user_party:
+            await interaction.response.send_message(
+                "⚠️ You are already in a party. To switch, please press Leave first.",
+                ephemeral=True)
+            return
+
+        # ตรวจสอบเลือกครบ
         if not (self.selected_time and self.selected_ch and self.selected_boss
                 and self.selected_count):
             await interaction.response.send_message(
@@ -210,14 +218,14 @@ class JoinView(discord.ui.View):
                 ephemeral=True)
             return
 
-        # ล็อคตัวเองทันที
+        # ล็อค slot ทันที
         members.append(uid)
         user_party[uid] = (self.selected_time, self.selected_ch,
                            self.selected_boss, self.selected_count)
-
         extra_needed = self.selected_count - 1
-        if extra_needed > 0:
 
+        if extra_needed > 0:
+            # Modal สำหรับเพื่อน
             class FriendModal(discord.ui.Modal, title="Friend Name"):
 
                 def __init__(self, view_self):
@@ -241,9 +249,7 @@ class JoinView(discord.ui.View):
                         self.view_self.selected_ch][
                             self.view_self.selected_boss]
                     uid = modal_interaction.user.id
-                    extra_needed = self.view_self.selected_count - 1
 
-                    # ตรวจสอบ slot อีกครั้ง
                     remaining_slots = 5 - len(members)
                     if remaining_slots < extra_needed:
                         # ลบตัวเองที่ล็อคไว้
@@ -255,7 +261,7 @@ class JoinView(discord.ui.View):
                             ephemeral=True)
                         return
 
-                    # เพิ่มเพื่อนลง members
+                    # เพิ่มเพื่อน
                     for f in self.friend_inputs:
                         members.append(f.value)
 
@@ -275,13 +281,13 @@ class JoinView(discord.ui.View):
             await interaction.response.send_modal(FriendModal(self))
             return
 
-        # ถ้าเลือก 1 คน
+        # เลือก 1 คน
         await interaction.response.send_message(
             f"✅ {interaction.user.display_name} เข้าปาร์ตี้ {self.selected_time} {self.selected_ch} {self.selected_boss} ({len(members)}/5 คน)",
             ephemeral=True)
 
     # ------------------------------
-    # Leave Party (ลบตัวเอง + เพื่อน)
+    # Leave Party
     # ------------------------------
     async def leave_callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
