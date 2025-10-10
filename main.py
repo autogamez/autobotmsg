@@ -117,14 +117,14 @@ class JoinView(discord.ui.View):
 
         # Time select
         self.time_select = discord.ui.Select(
-            placeholder="เลือกเวลา",
+            placeholder="Time select",
             options=[discord.SelectOption(label=t) for t in parties.keys()])
         self.time_select.callback = self.time_callback
         self.add_item(self.time_select)
 
         # Channel select
         self.ch_select = discord.ui.Select(
-            placeholder="เลือก Channel",
+            placeholder="Channel select",
             options=[
                 discord.SelectOption(label="CH-1"),
                 discord.SelectOption(label="CH-2")
@@ -134,7 +134,7 @@ class JoinView(discord.ui.View):
 
         # Boss select
         self.boss_select = discord.ui.Select(
-            placeholder="เลือก Boss",
+            placeholder="Boss select",
             options=[
                 discord.SelectOption(label=boss)
                 for boss in ["Sylph", "Undine", "Gnome", "Salamander"]
@@ -144,19 +144,19 @@ class JoinView(discord.ui.View):
 
         # Count select
         self.count_select = discord.ui.Select(
-            placeholder="เลือกจำนวนคน (1–5)",
+            placeholder="number of people (1–5)",
             options=[discord.SelectOption(label=str(i)) for i in range(1, 6)])
         self.count_select.callback = self.count_callback
         self.add_item(self.count_select)
 
         # Confirm button
         self.confirm_button = discord.ui.Button(
-            label="✅ ยืนยันเข้าปาร์ตี้", style=discord.ButtonStyle.green)
+            label="✅ Confirm", style=discord.ButtonStyle.green)
         self.confirm_button.callback = self.confirm_callback
         self.add_item(self.confirm_button)
 
         # Leave button
-        self.leave_button = discord.ui.Button(label="↩️ ออกจากปาร์ตี้",
+        self.leave_button = discord.ui.Button(label="↩️ Leave",
                                               style=discord.ButtonStyle.red)
         self.leave_button.callback = self.leave_callback
         self.add_item(self.leave_button)
@@ -209,7 +209,7 @@ class JoinView(discord.ui.View):
                               microsecond=0)
         if now < join_dt:
             await interaction.response.send_message(
-                f"⏳ ยังไม่ถึงเวลาที่กำหนด โปรดรอ {join_start_time} เป็นต้นไป",
+                f"⏳ Not time yet. Please wait {join_start_time} ",
                 ephemeral=True)
             return
 
@@ -222,14 +222,14 @@ class JoinView(discord.ui.View):
         uid = interaction.user.id
         if uid in user_party:
             await interaction.response.send_message(
-                "⚠️ คุณอยู่ปาร์ตี้อื่นอยู่แล้ว ใช้ Leave ก่อน", ephemeral=True)
+                "⚠️ You are already in another party. Please use Leave first.", ephemeral=True)
             return
 
         members = parties[self.selected_time][self.selected_ch][
             self.selected_boss]
         remaining_slots = 5 - len(members)
         if remaining_slots <= 0:
-            await interaction.response.send_message("❌ ปาร์ตี้เต็มแล้ว",
+            await interaction.response.send_message("❌ Party FULL",
                                                     ephemeral=True)
             return
         if self.selected_count > remaining_slots:
@@ -261,7 +261,7 @@ class JoinView(discord.ui.View):
                     remaining_slots = 5 - len(members)
                     if remaining_slots < (extra_needed + 1):
                         await modal_interaction.response.send_message(
-                            f"❌ ขอโทษนะ ปาร์ตี้เต็มไปแล้ว เหลือ {remaining_slots} ที่นั่ง",
+                            f"❌ Sorry, the party is full. Only {remaining_slots} slots left.",
                             ephemeral=True)
                         return
                     members.extend([uid] * (extra_needed + 1))
