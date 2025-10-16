@@ -806,12 +806,13 @@ def format_queue_table(dungeon_name: str):
     rows = []
     for party in data:
         for member in party.get("members", []):
-            char_name = member.get("character", "-")
+             char_name = member.get("character", "-")
 
-            # ✅ ตรวจสอบชื่อ ถ้ามี pattern 000 - ให้ตัดออก
-            if len(char_name) >= 5 and char_name[:3].isdigit(
-            ) and char_name[3:5] == " -":
-                char_name = char_name[5:]  # ตัดเลขหน้า + " -"
+            # ✅ ตรวจสอบชื่อ ถ้ามี pattern 000 -  ให้ตัดออก
+            if len(char_name) >= 6 and char_name[:3].isdigit(
+            ) and char_name[3:6] == " - ":
+                char_name = char_name[
+                    6:]  # ตัดเลขหน้า + " - " (รวม space หลัง)
 
             rows.append({
                 "status":
