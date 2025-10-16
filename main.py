@@ -406,7 +406,13 @@ async def list_party(interaction: discord.Interaction, time: str = None):
 
 
 @bot.tree.command(name="clear", description="ล้างข้อมูลปาร์ตี้ทั้งหมด")
-async def clear(interaction: discord.Interaction):
+@app_commands.describe(password="รหัส admin")
+async def clear(interaction: discord.Interaction, password: str):
+    if password != admin_password:
+        await interaction.response.send_message("❌ รหัสไม่ถูกต้อง",
+                                                ephemeral=True)
+        return 
+
     for t in parties:
         for ch in parties[t]:
             for boss in parties[t][ch]:
@@ -415,8 +421,7 @@ async def clear(interaction: discord.Interaction):
     party_friend_names.clear()
     await interaction.response.send_message("🧹 ล้างข้อมูลปาร์ตี้ทั้งหมดแล้ว",
                                             ephemeral=True)
-
-
+                                        
 @bot.tree.command(name="helpme", description="วิธีใช้งานบอทปาร์ตี้")
 async def helpme(interaction: discord.Interaction):
     msg = (
@@ -763,6 +768,359 @@ async def setup_roles(interaction: discord.Interaction):
                                             view=view,
                                             ephemeral=False)
 
+# ------------------------------
+# ตัวแปรหลัก
+# ------------------------------
+dungeons = {
+    "Anima Tower": [],
+    "Seaside Ruins": [],
+    "Juperos Ruins": []  # ✅ เพิ่มดันใหม่
+}
+user_status = {}
+
+JOB_OPTIONS = [
+    "Rune Knight", "Royal Guard", "Sorcerer", "Warlock", "Guillotine Cross",
+    "Shadow Chaser", "Mechanic", "Genetic", "Gand Summoner", "Archbishop",
+    "Shura", "Super Novice", "Ranger", "Wanderer", "Nightwatch"
+]
+
+STATUS_EMOJI = {"WAIT": "⌛", "DONE": "✅"}
+
+
+# ------------------------------
+# ฟังก์ชันช่วยเหลือ
+# ------------------------------
+def _find_user_in_dungeon(user_id, dungeon_name):
+    data = dungeons.get(dungeon_name, [])
+    for i, p in enumerate(data):
+        if p.get("user_id") == user_id:
+            return i
+    return None
+
+
+def format_queue_table(dungeon_name: str):
+    data = dungeons.get(dungeon_name, [])
+    if not data:
+        return "❌ ไม่มีข้อมูลในคิวตอนนี้"
+
+    rows = []
+    for party in data:
+        for member in party.get("members", []):
+            rows.append({
+                "status":
+                STATUS_EMOJI.get(member.get("status", "WAIT")),
+                "job":
+                member.get("job", "-"),
+                "character":
+                member.get("character", "-")
+            })
+
+    if not rows:
+        return "❌ ไม่มีข้อมูลในคิวตอนนี้"
+
+    width_no = 4
+    width_status = 8
+    width_job = 18
+    width_char = 16
+
+    header = f"{'No'.ljust(width_no)}| {'Status'.ljust(width_status)}| {'Job'.ljust(width_job)}| {'Character'.ljust(width_char)}"
+    separator = "-" * (width_no + width_status + width_job + width_char + 9)
+
+    lines = []
+    for i, row in enumerate(rows, start=1):
+        line = f"{str(i).ljust(width_no)}| {row['status'].ljust(width_status-1)}| {row['job'].ljust(width_job)}| {row['character'].ljust(width_char)}"
+        lines.append(line)
+
+    total_line = f"\nTotal players: {len(rows)}"
+    now = datetime.now(timezone(
+        timedelta(hours=7))).strftime("%d %b %Y, %H:%M")
+    last_update = f"Last updated: {now}"
+
+    table = "```" + "\n".join([header, separator, *lines
+                               ]) + "```" + total_line + f"\n{last_update}"
+    return table
+
+
+# ------------------------------
+# Party View
+# ------------------------------
+class PartyView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.user_data = {}
+
+        # Dropdown Dungeon ✅ เพิ่ม Juperos Ruins
+        self.dungeon_select = discord.ui.Select(
+            placeholder="Select Dungeon",
+            options=[
+                discord.SelectOption(label="Anima Tower", value="Anima Tower"),
+                discord.SelectOption(label="Seaside Ruins",
+                                     value="Seaside Ruins"),
+                discord.SelectOption(label="Juperos Ruins",
+                                     value="Juperos Ruins"),  # ✅
+            ],
+        )
+        self.dungeon_select.callback = self.on_dungeon_select
+        self.add_item(self.dungeon_select)
+
+        # Dropdown Job
+        self.job_select = discord.ui.Select(
+            placeholder="Select Job",
+            options=[discord.SelectOption(label=j) for j in JOB_OPTIONS],
+        )
+        self.job_select.callback = self.on_job_select
+        self.add_item(self.job_select)
+
+        # Buttons
+        self.join_btn = discord.ui.Button(label="Confirm",
+                                          style=discord.ButtonStyle.green)
+        self.join_btn.callback = self.on_join
+        self.add_item(self.join_btn)
+
+        self.cancel_btn = discord.ui.Button(label="Leave",
+                                            style=discord.ButtonStyle.red)
+        self.cancel_btn.callback = self.on_cancel
+        self.add_item(self.cancel_btn)
+
+        self.done_btn = discord.ui.Button(label="Done",
+                                          style=discord.ButtonStyle.blurple)
+        self.done_btn.callback = self.on_done
+        self.add_item(self.done_btn)
+
+        self.check_queue_btn = discord.ui.Button(
+            label="Check Queue", style=discord.ButtonStyle.gray)
+        self.check_queue_btn.callback = self.on_check_queue
+        self.add_item(self.check_queue_btn)
+
+    # --------------------------
+    # Dropdown Dungeon
+    # --------------------------
+    async def on_dungeon_select(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        dungeon = self.dungeon_select.values[0]
+        self.user_data[uid] = self.user_data.get(uid, {})
+        self.user_data[uid]["dungeon"] = dungeon
+        await interaction.response.defer(ephemeral=True)
+
+    # --------------------------
+    # Dropdown Job
+    # --------------------------
+    async def on_job_select(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        job = self.job_select.values[0]
+        self.user_data[uid] = self.user_data.get(uid, {})
+        self.user_data[uid]["job"] = job
+        await interaction.response.defer(ephemeral=True)
+
+    # --------------------------
+    # JOIN
+    # --------------------------
+    async def on_join(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        data = self.user_data.get(uid)
+        if not data or "dungeon" not in data or "job" not in data:
+            await interaction.response.send_message(
+                "⚠️ Please select both Dungeon and Job first", ephemeral=True)
+            return
+
+        dungeon = data["dungeon"]
+        job = data["job"]
+        name = interaction.user.display_name
+
+        if _find_user_in_dungeon(uid, dungeon) is not None:
+            await interaction.response.send_message(
+                f"⚠️ You already joined {dungeon}", ephemeral=True)
+            return
+
+        entry = {
+            "user_id": uid,
+            "members": [{
+                "character": name,
+                "job": job,
+                "status": "WAIT"
+            }],
+            "status": "WAIT",
+        }
+        dungeons[dungeon].append(entry)
+        user_status[uid] = {"dungeon": dungeon, "status": "WAIT"}
+
+        await interaction.response.send_message(
+            f"✅ Joined {dungeon} — Job: {job}", ephemeral=True)
+
+    # --------------------------
+    # CANCEL
+    # --------------------------
+    async def on_cancel(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        data = self.user_data.get(uid)
+        if not data or "dungeon" not in data:
+            await interaction.response.send_message("⚠️ Select dungeon first",
+                                                    ephemeral=True)
+            return
+
+        dungeon = data["dungeon"]
+        idx = _find_user_in_dungeon(uid, dungeon)
+        if idx is None:
+            await interaction.response.send_message(
+                f"⚠️ You have not joined {dungeon}", ephemeral=True)
+            return
+
+        dungeons[dungeon].pop(idx)
+        user_status.pop(uid, None)
+        await interaction.response.send_message(
+            f"❌ Cancelled queue in {dungeon}", ephemeral=True)
+
+    # --------------------------
+    # DONE
+    # --------------------------
+    async def on_done(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        data = self.user_data.get(uid)
+        if not data or "dungeon" not in data:
+            await interaction.response.send_message("⚠️ Select dungeon first",
+                                                    ephemeral=True)
+            return
+
+        dungeon = data["dungeon"]
+        idx = _find_user_in_dungeon(uid, dungeon)
+        if idx is None:
+            await interaction.response.send_message(
+                f"⚠️ You have not joined {dungeon}", ephemeral=True)
+            return
+
+        party = dungeons[dungeon][idx]
+        party["status"] = "DONE"
+        for m in party.get("members", []):
+            m["status"] = "DONE"
+        user_status.setdefault(uid, {})["status"] = "DONE"
+        await interaction.response.send_message(
+            f"🏁 Status for {dungeon} updated to DONE", ephemeral=True)
+
+    # --------------------------
+    # Check Queue
+    # --------------------------
+    async def on_check_queue(self, interaction: discord.Interaction):
+        uid = interaction.user.id
+        data = self.user_data.get(uid)
+
+        if not data or "dungeon" not in data:
+            await interaction.response.send_message(
+                "⚠️ Please select a Dungeon first", ephemeral=True)
+            return
+
+        dungeon = data["dungeon"]
+
+        if dungeon == "Anima Tower":
+            embed = discord.Embed(
+                title="🗺️ Anima Tower Queue",
+                description=format_queue_table("Anima Tower"),
+                color=0x1abc9c,
+            )
+        elif dungeon == "Seaside Ruins":
+            embed = discord.Embed(
+                title="🌊 Seaside Ruins Queue",
+                description=format_queue_table("Seaside Ruins"),
+                color=0x3498db,
+            )
+        elif dungeon == "Juperos Ruins":  # ✅ เพิ่ม embed ของ Juperos Ruins
+            embed = discord.Embed(
+                title="⚙️ Juperos Ruins Queue",
+                description=format_queue_table("Juperos Ruins"),
+                color=0xe67e22,
+            )
+        else:
+            await interaction.response.send_message(
+                "⚠️ Unknown dungeon selected", ephemeral=True)
+            return
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ------------------------------
+# /party_system command
+# ------------------------------
+@bot.tree.command(name="party_system",
+                  description="Open Dungeon & Job selector")
+async def party_system_cmd(interaction: discord.Interaction):
+    channel = interaction.channel
+    # ตรวจสอบโพสต์ซ้ำ
+    async for msg in channel.history(limit=50):
+        if msg.author == bot.user and msg.embeds:
+            for embed in msg.embeds:
+                if embed.title and "Dungeon & Job Party System" in embed.title:
+                    await interaction.response.send_message(
+                        "❌ This chat already contains a /party_system. Duplicate not allowed.",
+                        ephemeral=True)
+                    return
+    embed = discord.Embed(
+        title="🎯 Dungeon & Job Party System",
+        description=(
+            "**Queue Booking Steps:**\n"
+            "- Select a dungeon\n"
+            "- Select your job\n"
+            "- Confirm: After selecting Dungeon and Job,join the queue\n"
+            "- Leave: Select your dungeon and cancel your queue\n"
+            "- Done: Select your dungeon and mark your queue as completed\n"
+            "- Check Queue: Select your dungeon and view the current queue"),
+        color=0x9b59b6,
+    )
+    embed.set_image(url="attachment://aosz_party_system.jpg")
+
+    file = discord.File("aosz_party_system.jpg",
+                        filename="aosz_party_system.jpg")
+
+    view = PartyView()
+    await interaction.response.send_message(embed=embed,
+                                            view=view,
+                                            file=file,
+                                            ephemeral=False)
+
+
+# ------------------------------
+# /clearqueue command
+# ------------------------------
+@bot.tree.command(name="clearqueue",
+                  description="Clear all queues for all dungeons")
+@app_commands.describe(password="รหัส admin")
+async def clearqueue_cmd(interaction: discord.Interaction, password: str):
+    if password != admin_password:
+        await interaction.response.send_message("❌ รหัสไม่ถูกต้อง",
+                                                ephemeral=True)
+        return
+    # ล้างข้อมูลของทุกดัน
+    for dungeon in dungeons.keys():
+        dungeons[dungeon].clear()
+
+    # ล้าง user_status ทั้งหมด
+    user_status.clear()
+
+    await interaction.response.send_message(
+        "🗑️ All queues for Anima Tower, Seaside Ruins, and Juperos Ruins have been cleared.",
+        ephemeral=True)
+
+
+# ------------------------------
+# /listqueue command
+# ------------------------------
+@bot.tree.command(name="listqueue",
+                  description="Show current queues for all dungeons")
+async def listqueue_cmd(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📋 Current Queues for All Dungeons",
+        color=0x9b59b6,
+    )
+
+    # เพิ่มข้อมูลของแต่ละดัน
+    for dungeon, color, emoji in [
+        ("Anima Tower", 0x1abc9c, "🗺️"),
+        ("Seaside Ruins", 0x3498db, "🌊"),
+        ("Juperos Ruins", 0xe67e22, "⚙️"),
+    ]:
+        table = format_queue_table(dungeon)
+        embed.add_field(name=f"{emoji} {dungeon}", value=table, inline=False)
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # เรียก keep_alive ก่อนรันบอท
 keep_alive()
