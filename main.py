@@ -806,13 +806,20 @@ def format_queue_table(dungeon_name: str):
     rows = []
     for party in data:
         for member in party.get("members", []):
+            char_name = member.get("character", "-")
+
+            # ✅ ตรวจสอบชื่อ ถ้ามี pattern 000 - ให้ตัดออก
+            if len(char_name) >= 5 and char_name[:3].isdigit(
+            ) and char_name[3:5] == " -":
+                char_name = char_name[5:]  # ตัดเลขหน้า + " -"
+
             rows.append({
                 "status":
                 STATUS_EMOJI.get(member.get("status", "WAIT")),
                 "job":
                 member.get("job", "-"),
                 "character":
-                member.get("character", "-")
+                char_name
             })
 
     if not rows:
