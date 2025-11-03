@@ -910,20 +910,26 @@ class PartyMainView(discord.ui.View):
         await interaction.response.send_message(
             "🎯 Select Dungeon and Job to join:", view=view, ephemeral=True)
 
-    async def on_check_queue(self, interaction: discord.Interaction):
-        uid = interaction.user.id
-        embed = discord.Embed(title="📋 Current Queues for All Dungeons",
-                              color=0x9b59b6)
-        for dungeon, color, emoji in [
-            ("Anima Tower", 0x1abc9c, "🗺️"),
-            ("Seaside Ruins", 0x3498db, "🌊"),
-            ("Juperos Ruins", 0xe67e22, "⚙️"),
-        ]:
-            table = format_queue_table(dungeon)
-            embed.add_field(name=f"{emoji} {dungeon}",
-                            value=table,
-                            inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+async def on_check_queue(self, interaction: discord.Interaction):
+    table = format_queue_table(dungeon_name)
+
+    # ✅ ตัดหรือ split ให้ไม่เกิน 1024
+    chunks = [table[i:i+1024] for i in range(0, len(table), 1024)]
+    embeds = []
+    for idx, chunk in enumerate(chunks):
+        embed = discord.Embed(
+            title=f"{dungeon_name}" + (f" (Part {idx+1})" if len(chunks) > 1 else ""),
+            color=0x9b59b6
+        )
+        embed.add_field(name="Queue", value=chunk, inline=False)
+        embeds.append(embed)
+
+    if len(embeds) <= 10:
+        await interaction.response.send_message(embeds=embeds, ephemeral=True)
+    else:
+        await interaction.response.send_message(embeds=embeds[:10], ephemeral=True)
+        for i in range(10, len(embeds), 10):
+            await interaction.followup.send(embeds=embeds[i:i+10], ephemeral=True)
 
 
 # ------------------------------
