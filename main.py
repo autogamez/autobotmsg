@@ -816,7 +816,7 @@ user_status = {}
 JOB_OPTIONS = [
     "Rune Knight", "Royal Guard", "Sorcerer", "Warlock", "Guillotine Cross",
     "Shadow Chaser", "Mechanic", "Genetic", "Gand Summoner", "Archbishop",
-    "Shura", "Super Novice", "Ranger", "Wanderer", "Nightwatch"
+    "Shura", "Super Novice", "Ranger", "Wanderer", "Maestro", "Nightwatch" 
 ]
 
 STATUS_EMOJI = {"WAIT": "⌛", "DONE": "✅"}
