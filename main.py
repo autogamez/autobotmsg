@@ -1140,21 +1140,39 @@ async def clearqueue_cmd(interaction: discord.Interaction, password: str):
 @bot.tree.command(name="listqueue",
                   description="Show current queues for all dungeons")
 async def listqueue_cmd(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="📋 Current Queues for All Dungeons",
-        color=0x9b59b6,
-    )
+    embeds = []
 
-    # เพิ่มข้อมูลของแต่ละดัน
     for dungeon, color, emoji in [
         ("Anima Tower", 0x1abc9c, "🗺️"),
         ("Seaside Ruins", 0x3498db, "🌊"),
         ("Juperos Ruins", 0xe67e22, "⚙️"),
     ]:
         table = format_queue_table(dungeon)
-        embed.add_field(name=f"{emoji} {dungeon}", value=table, inline=False)
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+        # ตัด table เป็น chunk ขนาด 1024 ตัวอักษร
+        chunks = [table[i:i + 1024] for i in range(0, len(table), 1024)]
+
+        for idx, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"{emoji} {dungeon}" +
+                (f" (Part {idx+1})" if len(chunks) > 1 else ""),
+                color=color)
+            embed.add_field(name="Queue", value=chunk, inline=False)
+            embeds.append(embed)
+
+    # Discord limit: ส่งได้ไม่เกิน 10 embeds ต่อ message
+    # ถ้าเกินให้ส่ง followup
+    if len(embeds) <= 10:
+        await interaction.response.send_message(embeds=embeds, ephemeral=True)
+    else:
+        # ส่ง 10 อันแรกเป็น response
+        await interaction.response.send_message(embeds=embeds[:10],
+                                                ephemeral=True)
+        # ส่งส่วนที่เหลือเป็น followup
+        for i in range(10, len(embeds), 10):
+            await interaction.followup.send(embeds=embeds[i:i + 10],
+                                            ephemeral=True)
+
 
 
 # เรียก keep_alive ก่อนรันบอท
