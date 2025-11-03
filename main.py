@@ -918,21 +918,71 @@ class PartyMainView(discord.ui.View):
         ]
 
         embeds = []
+        max_per_embed = 15  # split ทุก 15 คน
 
         for dungeon_name, color, emoji in dungeon_list:
             table = format_queue_table(dungeon_name)
 
-            # แบ่ง string > 1024 เป็น chunk
-            chunks = [table[i:i + 1024] for i in range(0, len(table), 1024)]
-            for idx, chunk in enumerate(chunks):
-                embed = discord.Embed(
-                    title=f"{emoji} {dungeon_name}" +
-                    (f" (Part {idx+1})" if len(chunks) > 1 else ""),
-                    color=color)
-                embed.add_field(name="Queue", value=chunk, inline=False)
+            # ถ้า table ว่าง → ส่ง embed แจ้งว่าไม่มีข้อมูล
+            if not table or table.strip() in ["❌ ไม่มีข้อมูลในคิวตอนนี้", ""]:
+                embed = discord.Embed(title=f"{emoji} {dungeon_name}",
+                                      color=color)
+                embed.add_field(name="Queue",
+                                value="❌ ไม่มีข้อมูลในคิวตอนนี้",
+                                inline=False)
+                embeds.append(embed)
+                continue
+
+            # แยก header + player_lines + footer
+            if "```" in table:
+                _, body_footer = table.split("```", 1)
+                body, footer_block = body_footer.rsplit(
+                    "```", 1) if "```" in body_footer else (body_footer, "")
+            else:
+                body, footer_block = table, ""
+
+            lines = body.splitlines()
+            header_lines = lines[:2]  # header + separator
+            player_lines = lines[2:]
+            footer_text = footer_block.strip()
+
+            if not player_lines:
+                embed = discord.Embed(title=f"{emoji} {dungeon_name}",
+                                      color=color)
+                embed.add_field(name="Queue",
+                                value="❌ ไม่มีข้อมูลในคิวตอนนี้",
+                                inline=False)
+                embeds.append(embed)
+                continue
+
+            total_parts = (len(player_lines) - 1) // max_per_embed + 1
+            for idx, i in enumerate(range(0, len(player_lines),
+                                          max_per_embed)):
+                chunk_lines = player_lines[i:i + max_per_embed]
+                if not chunk_lines:
+                    continue
+
+                # ทุก embed มี header + separator
+                chunk_text = "```" + "\n".join(
+                    header_lines) + "\n" + "\n".join(chunk_lines) + "```"
+
+                # footer เฉพาะ embed สุดท้ายของ dungeon
+                if idx == total_parts - 1 and footer_text:
+                    chunk_text += f"\n{footer_text}"
+
+                embed = discord.Embed(title=f"{emoji} {dungeon_name}" +
+                                      (f" (Part {idx + 1}/{total_parts})"
+                                       if total_parts > 1 else ""),
+                                      color=color)
+                embed.add_field(name="Queue", value=chunk_text, inline=False)
                 embeds.append(embed)
 
         # ส่ง embed ไม่เกิน 10 ต่อ message
+        if not embeds:
+            await interaction.response.send_message("❌ ไม่มีข้อมูลในคิวเลย",
+                                                    ephemeral=True)
+            return
+
         if len(embeds) <= 10:
             await interaction.response.send_message(embeds=embeds,
                                                     ephemeral=True)
