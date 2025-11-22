@@ -617,50 +617,80 @@ async def on_ready():
 async def log_alive():
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Bot is alive!")
 
-
-# ------------------------------
-# Reaction Role System (เหมือนเดิม)
-# ------------------------------
-reaction_roles = {
-    "<:ln2:1406935643665207337>": {
-        "role_name": "ln2",
-        "color": 0x1abc9c,
-        "desc": "Game Lineage2M"
+# ---------------------------------------------------------
+# Reaction Roles (แบ่งเป็นหมวด)
+# ---------------------------------------------------------
+reaction_groups = {
+    "Game Lineage2M": {
+        "<:ln2:1406935643665207337>": {
+            "role_name": "ln2",
+            "color": 0x1abc9c,
+            "desc": "Role for Lineage2M Member Guild, Warm Welcome!"
+        },
+        "<:divine:1426180596694126612>": {
+            "role_name": "divine",
+            "color": 0xe67e22,
+            "desc": "Role for Lineage2M Divine Member,Warm Welcome!"
+        }
     },
-    "<:roo:1406935556956356739>": {
-        "role_name": "roo",
-        "color": 0xe67e22,
-        "desc": "Game Ragnarok Origin"
+    "Game Ragnarok Origin": {
+        "<:roo:1406935556956356739>": {
+            "role_name": "roo",
+            "color": 0xe67e22,
+            "desc": "Role for Ragnarok Origin Member Guild, ..Welcome!"
+        }
     },
-    "<:rom:1406935703685824611>": {
-        "role_name": "rom",
-        "color": 0x9b59b6,
-        "desc": "Game Ragnarok Eternal Love"
+    "Game Ragnarok Eternal Love": {
+        "<:rom:1406935703685824611>": {
+            "role_name": "rom",
+            "color": 0x9b59b6,
+            "desc": "Role for Ragnarok Eternal Love Member Guild, WC!"
+        }
     },
-    "<:stream:1417502619261337712>": {
-        "role_name": "livestream",
-        "color": 0x9b59b6,
-        "desc": "Participants and followers of YouTube live streams"
+    "Live stream": {
+        "<:stream:1417502619261337712>": {
+            "role_name": "livestream",
+            "color": 0x9b59b6,
+            "desc": "Participants and followers of YouTube live streams."
+        }
     }
 }
+
 ADMIN_CHANNEL_ID = 1417463299423076373
 
 
+# ---------------------------------------------------------
+# ฟังก์ชันทำให้ Description สูงเท่ากันทุก embed
+# ---------------------------------------------------------
+def normalize_height(text: str, target_lines: int = 12):
+    lines = text.split("\n")
+    while len(lines) < target_lines:
+        lines.append("\u200B")  # zero-width space
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------
+# /setup_roles command
+# ---------------------------------------------------------
 @bot.tree.command(name="setup_roles",
                   description="Request roles with admin approval")
 async def setup_roles(interaction: discord.Interaction):
-    """Post main message with emoji buttons for users to request roles."""
 
-    class RoleView(discord.ui.View):
+    # -------------------------------------
+    # View เฉพาะของแต่ละ embed (ตามหมวด)
+    # -------------------------------------
+    class GroupRoleView(discord.ui.View):
 
-        def __init__(self):
+        def __init__(self, items):
             super().__init__(timeout=None)
-            for emoji_str, info in reaction_roles.items():
+
+            for emoji_str, info in items.items():
                 emoji_obj = discord.PartialEmoji.from_str(emoji_str)
-                button = discord.ui.Button(style=discord.ButtonStyle.secondary,
-                                           emoji=emoji_obj)
-                button.callback = self.make_callback(info)
-                self.add_item(button)
+
+                btn = discord.ui.Button(style=discord.ButtonStyle.primary,
+                                        emoji=emoji_obj)
+                btn.callback = self.make_callback(info)
+                self.add_item(btn)
 
         def make_callback(self, info):
             role_name = info["role_name"]
@@ -671,16 +701,18 @@ async def setup_roles(interaction: discord.Interaction):
                 guild = interact.guild
                 role_obj = discord.utils.get(guild.roles, name=role_name)
 
-                # Check if member already has the role
                 if role_obj in member.roles:
                     await interact.response.send_message(
-                        f"⚠️ You already have the role **{role_name}**. Please do not click again.",
+                        f"⚠️ You already have the role **{role_name}**.",
                         ephemeral=True)
                     return
 
-                # If not, open modal for input
+                # ----------------------
+                # Modal
+                # ----------------------
                 class InfoModal(discord.ui.Modal,
                                 title=f"{role_name} Request"):
+
                     character_name = discord.ui.TextInput(
                         label="Character Name",
                         placeholder="Enter your character name",
@@ -690,92 +722,82 @@ async def setup_roles(interaction: discord.Interaction):
                         placeholder="Who referred you or contract info",
                         max_length=50)
 
-                    async def on_submit(
-                            self, modal_interaction: discord.Interaction):
+                    async def on_submit(self, modal_interaction):
                         member = modal_interaction.user
                         guild = modal_interaction.guild
 
-                        # Respond to user
                         await modal_interaction.response.send_message(
                             embed=discord.Embed(
                                 title="✅ Role Request Submitted!",
                                 description=
-                                (f"You have requested the role: **{role_name}**\n"
-                                 f"Character Name: `{self.character_name.value}`\n"
-                                 f"Contract / Referral: `{self.contact.value}`\n\n"
+                                (f"You requested **{role_name}**\n"
+                                 f"Character: `{self.character_name.value}`\n"
+                                 f"Referral: `{self.contact.value}`\n\n"
                                  "Please wait for admin approval."),
-                                color=role_color),
+                                color=role_color,
+                            ),
                             ephemeral=True)
 
-                        # Send to admin channel with Confirm/Reject buttons
                         admin_channel = guild.get_channel(ADMIN_CHANNEL_ID)
-                        if not admin_channel:
-                            return
 
+                        # -------------------------
+                        # Admin confirm view
+                        # -------------------------
                         class AdminView(discord.ui.View):
 
                             def __init__(self):
                                 super().__init__(timeout=None)
 
-                                confirm_button = discord.ui.Button(
-                                    label="✅ Confirm Role",
+                                confirm = discord.ui.Button(
+                                    label="Confirm ✔️",
                                     style=discord.ButtonStyle.green)
-                                reject_button = discord.ui.Button(
-                                    label="❌ Reject",
+                                reject = discord.ui.Button(
+                                    label="Reject ❌",
                                     style=discord.ButtonStyle.red)
 
-                                async def confirm_callback(
-                                        btn_interact: discord.Interaction):
-                                    if role_obj and guild.me.top_role > role_obj:
-                                        await member.add_roles(role_obj)
-                                        await btn_interact.response.send_message(
-                                            f"✅ {member.display_name} has been granted the role **{role_name}**!",
-                                            ephemeral=True)
-                                        await btn_interact.message.edit(
-                                            view=None)
-                                        try:
-                                            await member.send(
-                                                f"🎉 Your role request **{role_name}** has been approved by admin!"
-                                            )
-                                        except:
-                                            pass
-                                    else:
-                                        await btn_interact.response.send_message(
-                                            "❌ Bot does not have permission to add this role",
-                                            ephemeral=True)
-
-                                async def reject_callback(
-                                        btn_interact: discord.Interaction):
+                                async def confirm_callback(btn_interact):
+                                    await member.add_roles(role_obj)
                                     await btn_interact.response.send_message(
-                                        f"❌ Role request of {member.display_name} has been rejected",
+                                        f"Role **{role_name}** granted to {member.mention}",
                                         ephemeral=True)
                                     await btn_interact.message.edit(view=None)
                                     try:
                                         await member.send(
-                                            f"❌ Your role request **{role_name}** was rejected by admin."
+                                            f"🎉 Your role **{role_name}** is approved!"
                                         )
                                     except:
                                         pass
 
-                                confirm_button.callback = confirm_callback
-                                reject_button.callback = reject_callback
-                                self.add_item(confirm_button)
-                                self.add_item(reject_button)
+                                async def reject_callback(btn_interact):
+                                    await btn_interact.response.send_message(
+                                        f"Role request **{role_name}** rejected.",
+                                        ephemeral=True)
+                                    await btn_interact.message.edit(view=None)
+                                    try:
+                                        await member.send(
+                                            f"❌ Your role **{role_name}** was rejected."
+                                        )
+                                    except:
+                                        pass
 
+                                confirm.callback = confirm_callback
+                                reject.callback = reject_callback
+
+                                self.add_item(confirm)
+                                self.add_item(reject)
+
+                        # embed admin
                         admin_embed = discord.Embed(
                             title=f"📩 Role Request: {role_name}",
                             color=role_color)
                         admin_embed.add_field(name="User",
                                               value=member.mention,
                                               inline=False)
-                        admin_embed.add_field(name="Character Name",
-                                              value=self.character_name.value,
-                                              inline=False)
-                        admin_embed.add_field(name="Contract / Referral",
-                                              value=self.contact.value,
-                                              inline=False)
-                        admin_embed.set_footer(
-                            text="Admin Panel | Approve or Reject")
+                        admin_embed.add_field(name="Character",
+                                              value=self.character_name.value)
+                        admin_embed.add_field(name="Referral",
+                                              value=self.contact.value)
+
                         await admin_channel.send(embed=admin_embed,
                                                  view=AdminView())
 
@@ -783,24 +805,25 @@ async def setup_roles(interaction: discord.Interaction):
 
             return callback
 
-    # Main embed message
-    main_embed = discord.Embed(
-        title="👋 Request Your Role Here!",
-        description="Click the emoji buttons below to request a role:\n\n",
-        color=0x7289DA)
+    # --------------------------------------------------------
+    # ส่งหลาย embeds — 1 embed ต่อ 1 หมวดเกม
+    # --------------------------------------------------------
+    for group_name, items in reaction_groups.items():
 
-    for emoji_str, info in reaction_roles.items():
-        main_embed.add_field(name=f"{emoji_str} {info['role_name']}",
-                             value=info['desc'],
-                             inline=False)
+        # รวม description ทั้งก้อนก่อน normalize
+        desc_block = ""
+        for emoji_str, info in items.items():
 
-    main_embed.set_footer(
-        text="Role Request System | Please fill in all information")
+            desc_block += f"{emoji_str}  {info['role_name']}\n{info['desc']}\n\n"
 
-    view = RoleView()
-    await interaction.response.send_message(embed=main_embed,
-                                            view=view,
-                                            ephemeral=False)
+        embed = discord.Embed(title=group_name,
+                              description=desc_block,
+                              color=0x7289DA)
+
+        await interaction.channel.send(embed=embed, view=GroupRoleView(items))
+
+    await interaction.response.send_message("Role selection panels created!",
+                                            ephemeral=True)
 
 
 # ------------------------------
