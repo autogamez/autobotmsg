@@ -608,7 +608,7 @@ async def on_ready():
     if not hasattr(bot, "synced"):
         await bot.tree.sync()
         bot.synced = True
-    print(f"✅ Bot Online as {bot.user}")
+    print(f"✅ Bot Online as test {bot.user}")
     log_alive.start()
 
 
@@ -618,6 +618,7 @@ async def on_ready():
 @tasks.loop(minutes=5)
 async def log_alive():
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Bot is alive!")
+
 
 # ---------------------------------------------------------
 # Reaction Roles (แบ่งเป็นหมวด)
@@ -841,7 +842,7 @@ user_status = {}
 JOB_OPTIONS = [
     "Rune Knight", "Royal Guard", "Sorcerer", "Warlock", "Guillotine Cross",
     "Shadow Chaser", "Mechanic", "Genetic", "Gand Summoner", "Archbishop",
-    "Shura", "Super Novice", "Ranger", "Wanderer", "Maestro", "Nightwatch" 
+    "Shura", "Super Novice", "Ranger", "Wanderer", "Maestro", "Nightwatch"
 ]
 
 STATUS_EMOJI = {"WAIT": "⌛", "DONE": "✅"}
@@ -1017,9 +1018,6 @@ class PartyMainView(discord.ui.View):
             for i in range(10, len(embeds), 10):
                 await interaction.followup.send(embeds=embeds[i:i + 10],
                                                 ephemeral=True)
-
-
-
 
 
 # ------------------------------
