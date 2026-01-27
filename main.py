@@ -5,6 +5,7 @@ from discord.ext import commands, tasks
 from threading import Thread
 from discord import app_commands
 from datetime import datetime, timedelta, timezone
+from keep_alive import keep_alive  # <-- เรียกจากไฟล์ keep_alive.py
 
 # ------------------------------
 # Discord Bot Setup
@@ -1266,5 +1267,5 @@ async def listqueue_cmd(interaction: discord.Interaction):
             await interaction.followup.send(embeds=embeds[i:i + 10],
                                             ephemeral=True)
 
-
+keep_alive()
 bot.run(os.environ["DISCORD_BOT_TOKEN"])
