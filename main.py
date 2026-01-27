@@ -605,7 +605,9 @@ async def delete(interaction: discord.Interaction, password: str):
 # ------------------------------
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    if not hasattr(bot, "synced"):
+        await bot.tree.sync()
+        bot.synced = True
     print(f"✅ Bot Online as {bot.user}")
     log_alive.start()
 
@@ -1268,7 +1270,4 @@ async def listqueue_cmd(interaction: discord.Interaction):
                                             ephemeral=True)
 
 
-
-# เรียก keep_alive ก่อนรันบอท
-keep_alive()
 bot.run(os.environ["DISCORD_BOT_TOKEN"])
