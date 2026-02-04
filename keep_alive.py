@@ -1,15 +1,12 @@
-from flask import Flask
-from threading import Thread
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is alive!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
+from aiohttp import web
+import threading
 
 def keep_alive():
-    t = Thread(target=run)
+    def run():
+        app = web.Application()
+        app.router.add_get("/", lambda r: web.Response(text="OK"))
+        web.run_app(app, host="0.0.0.0", port=10000)
+
+    t = threading.Thread(target=run)
+    t.daemon = True
     t.start()
