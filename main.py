@@ -635,11 +635,18 @@ reaction_groups = {
             "desc": "Role for Lineage2M Divine Member,Warm Welcome!"
         }
     },
+    "Game Ragnarok Origin Classic": {
+        "<:stream:1485971009206091828>": {
+            "role_name": "rooc",
+            "color": 0x9b59b6,
+            "desc": "Participants and followers of YouTube live streams."
+        }
+    },
     "Game Ragnarok Origin": {
         "<:roo:1406935556956356739>": {
             "role_name": "roo",
             "color": 0xe67e22,
-            "desc": "Role for Ragnarok Origin Member Guild, ..Welcome!"
+            "desc": "Role for Ragnarok Origin Classic Member Guild, Welcome!"
         }
     },
     "Game Ragnarok Eternal Love": {
