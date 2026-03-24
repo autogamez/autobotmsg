@@ -639,7 +639,7 @@ reaction_groups = {
         "<:stream:1485971009206091828>": {
             "role_name": "rooc",
             "color": 0x9b59b6,
-            "desc": "Role for Ragnarok Origin Classic Member Guild, Welcome!"
+            "desc": "Role for Ragnarok Origin Classic Member Guild, WC!"
         }
     },
     "Game Ragnarok Origin": {
